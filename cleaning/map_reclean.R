@@ -218,6 +218,7 @@ supp_data <- read_csv("data/ara.csv") %>%
                rename(community = community_name) %>%
                distinct(), 
              by = "community") %>%
+  arrange(priority) %>%
   st_as_sf()
 
 ## save data
