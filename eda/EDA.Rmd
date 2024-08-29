@@ -3,8 +3,9 @@ title: "My CHI. My Future. Exploratory Data Analysis"
 author: "Shruti Rathnavel, Emma Yu, and Rhona Zhang"
 date: 05-05-2023
 output: 
-  html_document:
-    code_folding: hide
+  rmarkdown::github_document
+  #html_document:
+    # code_folding: hide
 ---
 
 ```{r, include=FALSE}
