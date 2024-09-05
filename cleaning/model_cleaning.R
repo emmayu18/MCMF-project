@@ -5,6 +5,11 @@ library(skimr)
 library(tidygeocoder)
 library(sf)
 library(modeldb)
+library(stringr)
+# library(tokenizers)
+library(tidytext)
+library(stopwords)
+library(textstem)
 
 # load data
 data <- read_tsv("data/convert_MCMF_ALL_TIME_DATA.csv",
@@ -14,7 +19,7 @@ chicago_sf <- read_sf("data/CommAreas.geojson")
 # skim data
 skim_without_charts(data)
 
-# clean data
+# clean data ----
 ## clean names, get rid of unneeded columns and columns w/ missingness issue
 data <- data %>%
   clean_names() %>%
@@ -37,8 +42,8 @@ data <- data %>%
 
 ## turn date columns into datetime
 data <- data %>%
-  mutate(start_date = as.Date(start_date, format = "%m/%d/%y"),
-         end_date = as.Date(end_date, format = "%m/%d/%y"))
+  mutate(start_datetime = as.Date(start_date, format = "%m/%d/%y"),
+         end_datetime = as.Date(end_date, format = "%m/%d/%y"))
 
 ## get rid of observations with min_age < 25 and NA category
 data <- data %>% 
@@ -66,7 +71,7 @@ data <- data %>%
       max_age == 13 ~ 8, max_age == 14 ~ 9, max_age == 15 ~ 10, max_age == 16 ~ 11,
       max_age == 17 ~ 12, max_age >= 18 ~ 13)) 
 
-## fix capacity: anything >= 1000 is set to 1000
+## fix capacity: anything >= 500 is set to 500
 data <- data %>%
   mutate(capacity = case_when(capacity >= 500 ~ 500,
                               capacity < 500 ~ capacity))
@@ -190,6 +195,16 @@ data <- data %>%
     meeting_type == "online" ~ NA
   ))
 
+## fix communities
+data <- data %>%
+  mutate(community_name = case_when(
+    community_name == "Little Village" ~ "SOUTH LAWNDALE",
+    community_name == "Garfield Park" ~ "EAST GARFIELD PARK",
+    community_name == "Bronzeville/South Lakefront" ~ "GRAND BOULEVARD",
+    community_name == "Back of the Yards" ~ "NEW CITY",
+    .default = community_name
+  ))
+
 ## create priority region factor variable 
 list_priority_areas = c("Austin", "North Lawndale", "Humboldt Park", 
                         "East Garfield Park", "Englewood", "Auburn Gresham",
@@ -199,7 +214,11 @@ list_priority_areas = c("Austin", "North Lawndale", "Humboldt Park",
 )
 data <- data %>%
   mutate(priority = tolower(community_name) %in% 
-           tolower(list_priority_areas)) 
+           tolower(list_priority_areas)) %>%
+  mutate(priority = case_when(
+    meeting_type == "online" ~ NA,
+    .default = priority
+  ))
 
 ## combine categories to general categories, drop category_name column
 data <- data %>%
@@ -237,6 +256,230 @@ data <- inner_join(dat_dummy, dat_dummy_combine, by = 'id') %>%
          community_service_dum = "general_category_Community Service.y",
          professional_skill_dum = "general_category_Professional Skill Building.y",
          leisure_arts_dum = "general_category_Leisure and Arts.y")
+
+## deselect location variables
+data <- data %>%
+  select(-c("address", "city", "state", "zipcode", "longitude", "latitude"))
  
 ## save data
 save(data, file = "data/wrangle/model_clean.rda")
+
+# time series wrangling ----
+load("data/wrangle/model_clean.rda")
+## select necessary variables
+data <- data %>%
+  select(-c(id, index_row, description, org_name, capacity, min_age, max_age,
+            start_time, end_time))
+
+## all counts
+time_data_all <- data %>%
+  rowwise() %>%
+  mutate(days = list(seq(start_date, end_date, by = 1))) %>%
+  unnest_longer(col = days) %>%
+  group_by(days) %>%
+  summarize(total_count = n()) %>%
+  filter(days <= as.Date("2023-03-15"))
+
+## meeting type counts
+time_data_meeting_type <- data %>%
+  rowwise() %>%
+  mutate(days = list(seq(start_date, end_date, by = 1))) %>%
+  unnest_longer(col = days) %>%
+  group_by(days, meeting_type) %>%
+  summarize(count = n()) %>%
+  pivot_wider(names_from = meeting_type, values_from = count) %>%
+  replace_na(list(face_to_face = 0, online = 0)) %>%
+  filter(days <= as.Date("2023-03-15"))
+
+## community counts
+time_data_community <- data %>%
+  rowwise() %>%
+  mutate(days = list(seq(start_date, end_date, by = 1))) %>%
+  unnest_longer(col = days) %>%
+  group_by(days, community_name) %>%
+  summarize(count = n()) %>%
+  pivot_wider(names_from = community_name, values_from = count) %>%
+  select(-"NA") %>%
+  replace(is.na(.), 0) %>%
+  filter(days <= as.Date("2023-03-15"))
+
+# priority community counts 
+time_data_priority <- data %>%
+  rowwise() %>%
+  mutate(days = list(seq(start_date, end_date, by = 1))) %>%
+  unnest_longer(col = days) %>%
+  group_by(days, priority) %>%
+  summarize(count = n()) %>%
+  pivot_wider(names_from = priority, values_from = count) %>%
+  select("TRUE") %>%
+  rename("priority_TRUE" = "TRUE") %>%
+  replace(is.na(.), 0) %>%
+  filter(days <= as.Date("2023-03-15"))
+
+# program price counts
+time_data_price <- data %>%
+  rowwise() %>%
+  mutate(days = list(seq(start_date, end_date, by = 1))) %>%
+  unnest_longer(col = days) %>%
+  group_by(days, program_price) %>%
+  summarize(count = n()) %>%
+  pivot_wider(names_from = program_price, values_from = count) %>%
+  select(-"Unknown") %>%
+  rename("price_free" = "Free",
+         "price_less_50" = "$50 or Less",
+         "price_more_50" = "More Than $50") %>%
+  replace(is.na(.), 0) %>%
+  filter(days <= as.Date("2023-03-15"))
+
+## program pays counts
+time_data_pay <- data %>%
+  rowwise() %>%
+  mutate(days = list(seq(start_date, end_date, by = 1))) %>%
+  unnest_longer(col = days) %>%
+  group_by(days, program_pays_participants) %>%
+  summarize(count = n()) %>%
+  pivot_wider(names_from = program_pays_participants, values_from = count) %>%
+  select("Paid, Type Unknown") %>%
+  rename("pay_TRUE" = "Paid, Type Unknown") %>%
+  replace(is.na(.), 0) %>%
+  filter(days <= as.Date("2023-03-15"))
+
+## program category counts
+time_data_category <- data %>%
+  rowwise() %>%
+  mutate(days = list(seq(start_date, end_date, by = 1))) %>%
+  unnest_longer(col = days) %>%
+  group_by(days) %>%
+  summarize(cat_academics = sum(academics_dum),
+            cat_comm = sum(community_service_dum),
+            cat_leisure = sum(leisure_arts_dum),
+            cat_prof = sum(professional_skill_dum)) %>%
+  filter(days <= as.Date("2023-03-15"))
+
+## join datasets
+time_data <- time_data_all %>%
+  inner_join(y = time_data_category, by = "days") %>%
+  inner_join(y = time_data_community, by = "days") %>%
+  inner_join(y = time_data_meeting_type, by = "days") %>%
+  inner_join(y = time_data_pay, by = "days") %>%
+  inner_join(y = time_data_price, by = "days") %>%
+  inner_join(y = time_data_priority, by = "days")
+
+## save time series data
+save(time_data, file = "data/wrangle/time_series.rda")
+
+# topic modeling cleaning ----
+load("data/wrangle/model_clean.rda")
+text_data <- data %>%
+  rowid_to_column("index") %>%
+  # select variables
+  select(index, program_name, description, leisure_arts_dum, academics_dum,
+         community_service_dum, professional_skill_dum) %>%
+  # lower strings
+  mutate(description = tolower(description)) %>%
+  # remove html tags
+  mutate(description = str_replace_all(description, "<.*?>", " ")) %>%
+  # remove html entities
+  mutate(description = str_replace_all(description, "&.*?;", " ")) %>%
+  # remove URL links
+  mutate(description = str_replace_all(description, "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", " ")) %>%
+  mutate(description = str_replace_all(description, "www(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", " ")) %>%
+  # remove punctuation and numbers
+  mutate(description = str_replace_all(description, "[^a-zA-Z\\s]", "")) %>%
+  # all spaces to singlespace 
+  mutate(description = str_replace_all(description, "[\\s]+", " "))
+
+## tokenize 
+text_tokens <- text_data %>%
+  unnest_tokens(word, description)
+
+## remove spanish observations
+spanish_index <- c(text_tokens %>%
+  filter(word == "de") %>%
+  select(index) %>%
+  distinct(index))[[1]]
+  
+custom_stop_words <- bind_rows(data_frame(word = stopwords(source = "snowball")),
+                               data_frame(word = c("event", "chicago", "please", 
+                                            "program", "camp", "tbd", "tba")))
+## token counts & tf-idf
+token_counts <- text_tokens %>%
+  # remove spanish
+  filter(!(index %in% spanish_index)) %>%
+  # lemmatize tokens
+  mutate(word = lemmatize_words(word)) %>%
+  # remove stop words
+  anti_join(data_frame(word = stopwords(source = "snowball"))) %>%
+  # filter out some words
+  filter(!(startsWith(word, "zoom") == TRUE)) %>%
+  # filter out words with <= 2 characters
+  filter(nchar(word) > 2) %>%
+  # get token count
+  count(word)
+  count(index, program_name, word) # %>%
+  # tf-idf
+  bind_tf_idf(word, index, n)
+
+## save data
+#save(text_data, file = "data/wrangle/topic_model.rda")
+
+# text classification cleaning ----
+load("data/wrangle/model_clean.rda")
+data <- data %>%
+  # select variables
+  select(program_name, description, leisure_arts_dum, academics_dum,
+         community_service_dum, professional_skill_dum) %>%
+  # remove observations with multiple categories
+  mutate(sum = rowSums(across(where(is.numeric)))) %>%
+  filter(sum == 1) %>%
+  select(-sum) %>%
+  # combine category dummy variables
+  mutate(category = case_when(
+    leisure_arts_dum == 1 ~ "Leisure and Arts",
+    academics_dum == 1 ~ "Academics",
+    community_service_dum == 1 ~ "Community Service",
+    professional_skill_dum == 1 ~ "Professional Skill Building"
+  )) %>%
+  mutate(category = as.factor(category)) %>%
+  # create index column
+  rowid_to_column("index") %>%
+  select(index, program_name, description, category) %>%
+  # filter out spanish observations
+  filter(!(index %in% spanish_index))
+
+## save data for Jupyter notebook
+write.csv(data, file = "data/wrangle/text_classify.csv")
+
+data <- data %>%
+  # lower strings
+  mutate(description = tolower(description)) %>%
+  # remove html tags
+  mutate(description = str_replace_all(description, "<.*?>", " ")) %>%
+  # remove html entities
+  mutate(description = str_replace_all(description, "&.*?;", " ")) %>%
+  # remove URL links
+  mutate(description = str_replace_all(description, "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", " ")) %>%
+  mutate(description = str_replace_all(description, "www(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", " ")) %>%
+  # remove punctuation and numbers
+  mutate(description = str_replace_all(description, "[^a-zA-Z\\s]", "")) %>%
+  # all spaces to singlespace 
+  mutate(description = str_replace_all(description, "[\\s]+", " "))
+
+save(data, file = "data/wrangle/text_classification.rda")
+
+# multi-category (unclassified) observations ----
+load("data/wrangle/model_clean.rda")
+unclassified_data <- data %>%
+  # select variables
+  select(program_name, description, leisure_arts_dum, academics_dum,
+         community_service_dum, professional_skill_dum) %>%
+  # remove observations with multiple categories
+  mutate(sum = rowSums(across(where(is.numeric)))) %>%
+  filter(sum > 1) %>%
+  select(-sum) 
+View(predict(svm_fit, new_data = unclassified_data) %>%
+       bind_cols(unclassified_data %>% 
+                   select(program_name, description, leisure_arts_dum, academics_dum,
+                          community_service_dum, professional_skill_dum)))
+
+write.csv(unclassified_data, file = "data/wrangle/unclassified_text.csv")
