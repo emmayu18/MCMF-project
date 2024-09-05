@@ -1,0 +1,40 @@
+---
+title: "My CHI. My Future. Modeling"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r, include=FALSE}
+# load in packages
+library(tidyverse)
+library(janitor)
+library(tidyverse)
+library(lubridate)
+library(formattable)
+```
+
+# My Chi. My Future Prediction Model
+
+## Overview
+
+Talk about what we're trying to predict
+
+## Data
+
+Describe data and cleaning process
+Link to EDA:
+
+## Time Series Analysis
+
+### Models Tested
+
+### Results
+
+## Text Clustering
+
+### Models Tested
+
+### Results
+
+## Conclusion
