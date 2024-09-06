@@ -6,7 +6,7 @@ library(dbscan)
 
 # load data
 load("data/wrangle/model_clean.rda")
-load("data/wrangle/text_data.rda")
+#load("data/wrangle/text_data.rda")
 
 # LDA modeling ----
 ## DTM data
@@ -28,6 +28,12 @@ classifications <- gamma %>%
   ungroup()
 
 ## plot?
+#define data to plot
+lda_plot <- cbind(dtm, predict(lda)$x)
+
+#create plot
+ggplot(lda_plot, aes(LD1, LD2)) +
+  geom_point(aes(color = Species))
 
 # Latent Dirichlet Allocation (LDA): Assumes documents are mixtures of topics, and topics are mixtures of words.
 # Non-Negative Matrix Factorization (NMF): Decomposes the document-term matrix into topics and term weights.

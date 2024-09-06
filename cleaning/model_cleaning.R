@@ -6,7 +6,6 @@ library(tidygeocoder)
 library(sf)
 library(modeldb)
 library(stringr)
-# library(tokenizers)
 library(tidytext)
 library(stopwords)
 library(textstem)
@@ -368,7 +367,7 @@ time_data <- time_data_all %>%
 ## save time series data
 save(time_data, file = "data/wrangle/time_series.rda")
 
-# topic modeling cleaning ----
+# topic modeling cleaning (not used) ----
 load("data/wrangle/model_clean.rda")
 text_data <- data %>%
   rowid_to_column("index") %>%
@@ -415,13 +414,7 @@ token_counts <- text_tokens %>%
   # filter out words with <= 2 characters
   filter(nchar(word) > 2) %>%
   # get token count
-  count(word)
-  count(index, program_name, word) # %>%
-  # tf-idf
-  bind_tf_idf(word, index, n)
-
-## save data
-#save(text_data, file = "data/wrangle/topic_model.rda")
+  count(index, program_name, word)
 
 # text classification cleaning ----
 load("data/wrangle/model_clean.rda")
