@@ -209,6 +209,19 @@ new_data <- new_data %>%
 ## save data
 save(new_data, file = "data/wrangle/new_data_clean.rda")
 
+# csv for Jupyter notebook ----
+new_data_csv <- new_data %>%
+  mutate(category = case_when(
+    leisure_arts_dum == 1 ~ "Leisure and Arts",
+    academics_dum == 1 ~ "Academics",
+    community_service_dum == 1 ~ "Community Service",
+    professional_skill_dum == 1 ~ "Professional Skill Building"
+  )) %>%
+  mutate(category = as.factor(category)) %>%
+  select(program_name, description, category)
+
+## save data
+write.csv(new_data_csv, file = "data/wrangle/new_data_clean.csv")
 
 # new time series data ----
 time_data_all <- new_data %>%
