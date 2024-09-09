@@ -3,16 +3,16 @@ library(tidyverse)
 library(patchwork)
 library(forecast)
 library(xts)
+library(tseries)
+library(TTR)
 library(ggfortify)
 
 # load data ----
 ## load data 
 load("data/wrangle/time_series.rda")
-load("data/wrangle/new_time_series.rda")
 
 ## convert data to xts
 data_xts <- xts(time_data[,-1], order.by=time_data$days)
-new_data_xts <- xts(new_time_data[,-1], order.by=new_time_data$days)
 
 # plot code ----
 ## not including communities
@@ -133,11 +133,10 @@ ggplot(data = time_data, mapping = aes(x = days, y = online)) +
 total_count_ts <- ts(data_xts$total_count, 
                      start = c(2020, as.numeric(format(as.Date("2020-01-01"), "%j"))),
                      frequency=365)
-new_count_ts <- ts(new_data_xts$total_count, 
-                   start = c(2024, as.numeric(format(as.Date("2024-02-01"), "%j"))),
-                   frequency=365)
-autoplot(new_count_ts)
-autoplot(total_count_ts) + autolayer(new_count_ts)
+
+## split train and test
+train_count <- head(total_count_ts, round(length(total_count_ts) * 0.6))
+test_count <- tail(total_count_ts, length(total_count_ts) - length(train_count))
 
 ## decomposition analysis
 ### decomposition
@@ -153,33 +152,26 @@ adf.test(stl_adj)
   # p-value < 0.05: data is stationary, no need for differencing
 
 ## ACF plot
-ggAcf(stl_adj)
-  # q = 2
+ggAcf(stl_adj, xlim = c(0,100))
+  # q = 30 (max = 5)
 
 ## PACF plot
-  ggPacf(stl_adj)
+ggPacf(stl_adj, xlim = c(0,100))
   # p = 2 
-  
-## split train and test
-train_count <- head(total_count_ts, round(length(total_count_ts) * 0.6))
-test_count <- tail(total_count_ts, length(total_count_ts) - length(train_count))
 
 ## ARIMA modeling
-total_count_fit <- auto.arima(train_count)
-fit2 <- Arima(train_count, c(2,0,2))
+total_count_fit <- Arima(train_count, c(2,0,5))
 checkresiduals(total_count_fit)
 
-## SARIMA modeling
-# total_count_ts %>% diff(lag=4) %>% ggtsdisplay()
-fit2 <- Arima(total_count_ts, order=c(2,0,2), seasonal=c(0,0,1))
-checkresiduals(fit2)
-
 ## forecasting
-total_count_forecast <- forecast(total_count_fit, h = 450)
+total_count_forecast <- forecast(total_count_arima, level = 95, h = 465) 
+plot(total_count_forecast)
+lines(test_count, col = "purple")
 autoplot(total_count_forecast) + autolayer(test_count)
 
+
 ## testing
-total_count_test <- Arima(test_count, model=total_count_fit)
+total_count_test <- Arima(test_count, model = total_count_fit)
 accuracy(total_count_test)
 
 # cat_prof----
@@ -187,11 +179,11 @@ accuracy(total_count_test)
 cat_prof_ts <- ts(data_xts$cat_prof, 
                   start = c(2020, as.numeric(format(as.Date("2020-01-01"), "%j"))),
                   frequency=365)
-autoplot(cat_prof_ts)
-new_prof_ts <- ts(new_data_xts$cat_prof, 
-                  start = c(2024, as.numeric(format(as.Date("2024-02-01"), "%j"))),
-                  frequency=365)
-autoplot(cat_prof_ts) + autolayer(new_count_ts)
+plot(cat_prof_ts)
+
+## split train and test
+train_prof <- head(cat_prof_ts, round(length(cat_prof_ts) * 0.6))
+test_prof <- tail(cat_prof_ts, length(cat_prof_ts) - length(train_prof))
 
 ## decomposition analysis
 ### decomposition
@@ -199,42 +191,31 @@ cat_prof_decomp <- stl(cat_prof_ts[, 1],
                        s.window = "periodic")
 plot(cat_prof_decomp)
 ### de-trending
-cat_stl_adj <- cat_prof_ts - cat_prof_decomp$time.series[, "trend"]
-autoplot(cat_stl_adj)
-### smoothing
-# cat_prof_SMA <- SMA(cat_prof_ts, n = 30)
-# plot.ts(cat_prof_SMA)
+cat_stl_adj <- train_prof - cat_prof_decomp$time.series[, "trend"]
+plot(cat_stl_adj)
 
 ## stationary testing
-cat_prof_SMA <- replace(cat_prof_SMA, is.na(cat_prof_SMA), 0)
-adf.test(cat_prof_SMA)
-  # p-value = 0.232 > 0.05: data is not stationary
 adf.test(cat_stl_adj)
   # p-value = 0.01 < 0.05: data is stationary
 
-## differencing
-cat_prof_diff1 <- diff(cat_prof_SMA, differences = 1)
-adf.test(cat_prof_diff1)
-  # p-value = 0.01 < 0.05: now stationary
-  # d = 1
-plot.ts(cat_prof_diff1)
+# ## differencing
+# cat_prof_diff1 <- diff(cat_stl_adj, differences = 1)
+# adf.test(cat_prof_diff1)
+#   # p-value = 0.01 < 0.05: now stationary
+#   # d = 1
 
 ## ACF plot
-ggAcf(cat_prof_diff1)
-ggAcf(cat_stl_adj)
-  # q = 25 (max should be 5)
+# ggAcf(cat_prof_diff1)
+ggAcf(cat_stl_adj, xlim = c(0,100))
+  # q = 40 (max should be 5)
 
 ## PACF plot
-ggPacf(cat_prof_diff1)
+# ggPacf(cat_prof_diff1)
+ggPacf(cat_stl_adj, xlim = c(0,100))
   # p = 2 
 
-## split train and test
-train_prof <- head(cat_prof_ts, round(length(cat_prof_ts) * 0.6))
-test_prof <- tail(cat_prof_ts, length(cat_prof_ts) - length(train_prof))
-
 ## ARIMA fitting
-# cat_prof_fit <- Arima(cat_prof_SMA, order = c(2, 1, 5))
-cat_prof_fit <- auto.arima(train_prof)
+cat_prof_fit <- Arima(train_prof, order = c(2,0,5))
 checkresiduals(cat_prof_fit) # what does this mean?
 
 ## forecasting
@@ -250,51 +231,59 @@ accuracy(prof_test)
 online_ts <- ts(data_xts$online, 
                 start = c(2020, as.numeric(format(as.Date("2020-01-01"), "%j"))),
                 frequency=365)
-autoplot(online_ts)
-new_online_ts <- ts(new_data_xts$online, 
-                    start = c(2024, as.numeric(format(as.Date("2024-02-01"), "%j"))),
-                    frequency=365)
-autoplot(online_ts) + autolayer(new_online_ts)
+plot(online_ts)
 
 ## split train and test
 train_online <- head(online_ts, round(length(online_ts) * 0.6))
 test_online <- tail(online_ts, length(online_ts) - length(train_online))
 
-## decomposition analysi
+## decomposition analysis
 online_SMA <- SMA(train_online, n = 20)
 plot.ts(online_SMA)
+### decomposition
+online_decomp <- stl(online_ts[, 1], 
+                     s.window = "periodic")
+plot(online_decomp)
+### de-trending
+online_stl_adj <- online_ts - online_decomp$time.series[, "trend"]
+autoplot(online_stl_adj)
 
 ## stationary testing
 online_SMA <- replace(online_SMA, is.na(online_SMA), 0)
 adf.test(online_SMA)
   # p-value = 0.6219 > 0.05: data is not stationary
+adf.test(online_stl_adj)
+  # p-value = 0.04 < 0.05: stationary
 
 ## differencing
-online_diff1 <- diff(online_SMA, differences = 1)
+online_diff1 <- diff(online_stl_adj, differences = 1)
 adf.test(online_diff1)
   # p-value = 0.01 < 0.05: now stationary
   # d = 1
 plot.ts(online_diff1)
 
 ## ACF plot
-ggAcf(online_diff1)
-  # q = 18 (max should be 5)
+ggAcf(online_diff1, xlim = c(0,100))
+  # q = 6 (max should be 5)
+ggAcf(online_stl_adj, xlim = c(0,100))
+  # q = 60 (max should be 5)
 
 ## PACF plot
-ggPacf(online_diff1)
-  # p = 2
+ggPacf(online_diff1, xlim = c(0,100))
+  # p = 3
+ggPacf(online_stl_adj, xlim = c(0,100))
+  # p = 2 
 
 ## ARIMA fitting
-# online_fit <- Arima(online_SMA, order = c(2, 1, 5))
+online_fit <- Arima(train_online, order = c(3, 1, 5))
 # checkresiduals(online_fit) # what does this mean?
-# online_fit <- auto.arima(train_online)
-online_fit <- auto.arima(online_ts)
+# online_fit <- Arima(train_online, order = c(5,0,2))
+online_fit <- auto.arima(train_online)
 checkresiduals(online_fit)
 
 ## forecasting
 online_forecast <- forecast(online_fit, h = 450)
-# autoplot(online_forecast) + autolayer(test_online) + autolayer(new_online_ts)
-autoplot(online_forecast) + autolayer(new_online_ts)
+autoplot(online_forecast) + autolayer(test_online)
 
 # testing
 online_test <- Arima(test_online, model=online_fit)
