@@ -1,0 +1,22 @@
+---
+title: "intro"
+author: "Rhona Zhang"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# My CHI. My Future.
+
+[My CHI. My Future.](https://explore.mychimyfuture.org) is an initiative launched in May 2020 by the mayoral office and the City of Chicago to create a community network that connects young people and local organizations through a variety of youth programs. MCMF programs provide young people, ranging from the ages 0-24, with opportunities to participate in activities related to academic advancement, professional and personal development, art, wellness, and leisure. 
+
+Historically marginalized neighborhoods in Chicago often struggle with limited investment, inadequate public services, and insufficient job opportunities. Such disparities hinder social mobility and perpetuate systemic inequities, ultimately impacting the overall well-being and opportunities available to residents. Chicago remains one of the most segregated metropolitan area in America. Racial disparities in socio-economic indicators persist, with African American and Hispanic communities often experiencing disproportionately high poverty rates, limited access to quality education, and limited economic opportunities. Furthermore, although not all communities in Chicago experience the same level of violence, certain neighborhoods, primarily located on the city’s South and West sides, face disproportionately high rates of gun violence and homicide. These areas are often characterized by high poverty rates, limited access to quality healthcare, inadequate educational resources, and limited economic investment. These communities, largely inhabited by African American residents, bear the brunt of the consequences, experiencing higher rates of gun violence and its associated challenges. Operating in Chicago, a city with widespread income and racial inequality, MCMF has unique opportunities to provide youth with support and a safe space that helps them socially and academically. Placing emphasis on accessibility, through decreasing transit costs and costs of attendance, will help these programs perform academic and community support.
+
+## Project Goals
+
+Our goal is to visualize the equity of opportunity for the City of Chicago's youth to have access to and participate in local out-of-school programs across the city's diverse neighborhoods and communities. 
+
+We would like to understand how accessible are different categories of programs for different ages of youth? Do youth in different communities/regions of Chicago have the same access to similar types of programs? 
+
+Since online technically serve all geographic regions of Chicago, we will separately analyze online programs and compare the results with those from in-person programs. However, we do acknowledge that the engagement and experiences vary between the different program types. 
+
+We also aim to use machine learning modeling and time series analysis to assist the MCMF initiative in accurately and efficiently categorizing their out-of-school programs and forecasting program count.
