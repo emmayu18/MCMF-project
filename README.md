@@ -32,7 +32,7 @@ We were asked to use our data science skill sets to evaluate the program's equit
 `MCMF-project.Rproj`: R project setting storage </p>
 
 ## How to Use
-The entire project is compiled into one Shiny app. You can explore this project's EDA, interactive visual map, and modeling process through this [link](2r7ec0-emma-yu.shinyapps.io/mcmf_map/){target="_blank"}. </p>
+The entire project is compiled into one Shiny app. You can explore this project's EDA, interactive visual map, and modeling process through this [link](2r7ec0-emma-yu.shinyapps.io/mcmf_map/). </p>
 
 If you would like to view my reports, you can check out [`eda/EDA.md`](https://github.com/emmayu18/MCMF-project/blob/main/eda/EDA.md), [`model/text_classification.ipynb`](https://github.com/emmayu18/MCMF-project/blob/main/model/text_classification.ipynb), and [`model/model_report.md`](https://github.com/emmayu18/MCMF-project/blob/main/model/model_report.md) files. All of my codes are saved in the various R script files.
 
