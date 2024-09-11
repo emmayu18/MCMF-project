@@ -288,6 +288,14 @@ gencat_count <- merge(gencat_count,
 save(data, time, seasons, gencat_count, file = "data/wrangle/eda_data.rda")
 
 # visualization----
+## program type count table
+program_table <- time %>%
+  group_by(program_type) %>%
+  summarize(Count = n()) %>%
+  mutate(program_type = str_to_title(program_type)) %>%
+  rename(`Program Type` = program_type)
+save(program_table, file = "map/files/eda_table.rds")
+
 ## number of programs in each category
 ggplot(data = data, mapping = aes(x = category_name)) +
   geom_bar(fill = "#B3DDF2") + 
@@ -296,11 +304,12 @@ ggplot(data = data, mapping = aes(x = category_name)) +
        x = NULL,
        y = "Count") +
   theme_classic()
+ggsave(filename = "map/files/plots/eda1.png", width = 7, height = 5, units = "in")
 
 ## general category map
-ggplot(data = st_as_sf(gencat_count) %>% 
-       filter(general_category == "Academics"), 
-       aes(fill = n)) +
+a <- ggplot(data = st_as_sf(gencat_count) %>% 
+              filter(general_category == "Academics"), 
+            aes(fill = n)) +
   geom_sf() +
   labs(title = "Academics",
        fill = "Count") +
@@ -310,9 +319,9 @@ ggplot(data = st_as_sf(gencat_count) %>%
         panel.border = element_rect(fill=NA),
         panel.grid = element_blank())
 
-ggplot(data = st_as_sf(gencat_count) %>% 
-       filter(general_category == "Community Service"),
-       aes(fill = n)) +
+b <- ggplot(data = st_as_sf(gencat_count) %>% 
+              filter(general_category == "Community Service"),
+            aes(fill = n)) +
   geom_sf() +
   labs(title = "Community Service",
        fill = "Count") +
@@ -322,9 +331,9 @@ ggplot(data = st_as_sf(gencat_count) %>%
         panel.border = element_rect(fill=NA),
         panel.grid = element_blank())
 
-ggplot(data = st_as_sf(gencat_count) %>% 
-       filter(general_category == "Leisure and Arts"),
-       aes(fill = n)) +
+c <- ggplot(data = st_as_sf(gencat_count) %>% 
+              filter(general_category == "Leisure and Arts"),
+            aes(fill = n)) +
   geom_sf() +
   labs(title = "Leisure and Arts",
        fill = "Count") +
@@ -334,9 +343,9 @@ ggplot(data = st_as_sf(gencat_count) %>%
         panel.border = element_rect(fill=NA),
         panel.grid = element_blank())
 
-ggplot(data = st_as_sf(gencat_count) %>% 
-       filter(general_category == "Professional Skill Building"),
-       aes(fill = n)) +
+d <- ggplot(data = st_as_sf(gencat_count) %>% 
+              filter(general_category == "Professional Skill Building"),
+            aes(fill = n)) +
   geom_sf() +
   labs(title = "Professional Skill Building",
        fill = "Count") +
@@ -346,9 +355,14 @@ ggplot(data = st_as_sf(gencat_count) %>%
         panel.border = element_rect(fill=NA),
         panel.grid = element_blank())
 
+### combine plots
+a + b + c + d + plot_annotation(
+  title = "Number of opportunities of each category available in each county")
+ggsave(filename = "map/files/plots/eda2.png", width = 10, height = 8, units = "in")
+
 ## distribution for each community
-ggplot(data %>% filter(!is.na(community_name)), 
-       mapping = aes(fct_infreq(community_name), fill = priority)) +
+e <- ggplot(data %>% filter(!is.na(community_name)), 
+            mapping = aes(fct_infreq(community_name), fill = priority)) +
   geom_bar() + 
   labs(x = "Community Name",
        y = "Count",
@@ -364,7 +378,7 @@ f_dat <- st_as_sf(gencat_count %>%
                     summarise(n = sum(n))) %>%
   arrange(priority)
 
-ggplot(data = f_dat) +
+f <- ggplot(data = f_dat) +
   geom_sf(aes(fill = n),
           color = ifelse(f_dat$priority == TRUE,
                          "red", "#5F6061"),
@@ -377,6 +391,10 @@ ggplot(data = f_dat) +
         axis.text = element_blank(),
         panel.grid = element_blank(),
         plot.caption = element_text(vjust = 40))
+
+e + f + plot_annotation(
+  title = "Distribution of opportunities across communities")
+ggsave(filename = "map/files/plots/eda3.png", width = 10, height = 6, units = "in")
 
 ## category type per season
 ggplot(data = seasons, 
@@ -407,6 +425,7 @@ ggplot(data = seasons,
   labs(title = "Minimum age distribution of online vs. in-person programs across seasons", 
        x = NULL,
        y = "Minimum Age")
+ggsave(filename = "map/files/plots/eda4.png", width = 7, height = 5, units = "in")
 
 ## online vs. in-person cost
 ggplot(data = data, mapping = aes(x = program_price, fill = meeting_type)) +
@@ -418,6 +437,7 @@ ggplot(data = data, mapping = aes(x = program_price, fill = meeting_type)) +
   labs(title = "Cost of attending online vs. in-person programs", 
        x = "Program Cost",
        y = "Count")
+ggsave(filename = "map/files/plots/eda6.png", width = 7, height = 5, units = "in")
 
 ## accessibility across season
 ggplot(data = seasons, 
@@ -432,3 +452,4 @@ ggplot(data = seasons,
   labs(title = "Accessibility Across Seasons", 
        x = "Season",
        y = "Count")
+ggsave(filename = "map/files/plots/eda7.png", width = 7, height = 5, units = "in")

@@ -4,8 +4,8 @@ library(patchwork)
 library(forecast)
 library(xts)
 library(tseries)
+library(rugarch)
 library(TTR)
-library(ggfortify)
 
 # load data ----
 ## load data 
@@ -22,11 +22,15 @@ time_data_plots <- time_data %>%
          price_more_50, priority_TRUE)
 var_list = names(time_data_plots)
 plots <- list()
+ylabs <- c("Total Count", "Academics Count", "Community Service\nCount",
+           "Leisure and Arts\nCount", "Professional Skill\nBuilding Count",
+           "Face to Face Count", "Online Count", "Paid Count", "Free Count",
+           "Price < $50 Count", "Price > $50 Count", "Priority Region Count")
 for (i in 2:13) {
   plots[[i-1]] <- ggplot(time_data_plots, aes_string(x=var_list[1], 
                                                      y=var_list[i])) +
     geom_line() +
-    labs(y = names(time_data_plots)[i]) +
+    labs(y = ylabs[i-1], x = "Years") +
     theme_minimal()
 }
 
@@ -95,7 +99,12 @@ for (i in 73:77) {
 }
 
 # show plots (deciding which variables to forecast)----
-Reduce(`+`, plots)
+Reduce(`+`, plots) + plot_annotation(
+  title = "MCMF Program Count Time Series Data of Different Variables",
+  theme = theme(plot.title = element_text(face = "bold", 
+                                          size = 16, 
+                                          hjust = 0.5)))
+ggsave("model/plots/eda5.png", width = 10, height = 6, units = "in")
 Reduce(`+`, com_plots1)
 Reduce(`+`, com_plots2)
 Reduce(`+`, com_plots3)
@@ -129,50 +138,173 @@ ggplot(data = time_data, mapping = aes(x = days, y = online)) +
   labs(x = "Date", y = "Count")
 
 # total_count ----
-## ts data
+## data
+### ts data
 total_count_ts <- ts(data_xts$total_count, 
                      start = c(2020, as.numeric(format(as.Date("2020-01-01"), "%j"))),
-                     frequency=365)
+                     frequency=7)
 
-## split train and test
+### split train and test
 train_count <- head(total_count_ts, round(length(total_count_ts) * 0.6))
 test_count <- tail(total_count_ts, length(total_count_ts) - length(train_count))
 
-## decomposition analysis
-### decomposition
+png(file = "model/plots/training_testing.png", width = 9, height = 6.5, 
+    units = "in", res = 300)
+plot(train_count, xlim = c(2020, 2180), 
+     main = "MCMF Program Count Time Series Data", ylab = "Count", col = "blue",
+     bty = "n", xaxt = "n", yaxt = "n", cex.main = 2)
+box("plot", bty = "l", lwd = 2)
+axis(side = 1, lwd = 0, lwd.ticks = 2, at = seq(2020, 2175, length.out = 7),
+     labels = c("2020.0", "2020.5", "2021.0", "2021.5",
+                "2022.0", "2022.5", "2023.0"))
+axis(side = 2, lwd = 0, lwd.ticks = 2, las = 2)
+lines(test_count, col = "red")
+legend(2020.0, 2000, legend = c("Training Data", "Testing Data"),
+       col=c("blue", "red"), lty=1, cex=1.5)
+dev.off()
+
+## ARFIMA modeling
+### decomposition analysis
+#### decomposition
 decomp_stl <- stl(total_count_ts[, 1], 
                   s.window = "periodic")
 plot(decomp_stl)
-### de-trending
-stl_adj <- total_count_ts - decomp_stl$time.series[, "trend"]
-autoplot(stl_adj)
 
-## stationary testing
-adf.test(stl_adj)
-  # p-value < 0.05: data is stationary, no need for differencing
+### ARIMA parameter selection
+#### stationary testing
+adf.test(train_count)
+  # p-value = 0.01 < 0.05: data is stationary, no need for differencing
 
-## ACF plot
-ggAcf(stl_adj, xlim = c(0,100))
-  # q = 30 (max = 5)
+#### ACF plot
+x = ggAcf(train_count) + 
+  ggtitle("Autocorrelation Function (ACF) Plot") + 
+  theme_minimal()
+  # no lag cutoff, will use ARFIMA
 
-## PACF plot
-ggPacf(stl_adj, xlim = c(0,100))
+#### PACF plot
+y = ggPacf(train_count) +
+  ggtitle("Partial Autocorrelation Function (PACF) Plot") +
+  theme_minimal()
   # p = 2 
 
-## ARIMA modeling
-total_count_fit <- Arima(train_count, c(2,0,5))
-checkresiduals(total_count_fit)
+x + y
+ggsave(filename = "model/plots/acf_pacf.png", width = 9, height = 4, units = "in")
 
-## forecasting
-total_count_forecast <- forecast(total_count_arima, level = 95, h = 465) 
-plot(total_count_forecast)
+### ARFIMA fitting 
+total_count_arfima <- arfima(train_count)
+fit_arfima = fitted.values(total_count_arfima)
+checkresiduals(total_count_arfima)
+
+### forecasting
+forecast_arfima = forecast(total_count_arfima,level=95, h=468)
+png(file = "model/plots/ARFIMA_forecast.png", width = 9, height = 6.5, 
+    units = "in", res = 300)
+plot(forecast_arfima, main = "MCMF Program Count Forecast", xlab = "Time",
+     ylab = "Count", bty = "n", xaxt = "n", yaxt = "n", cex.main = 2)
+box("plot", bty = "l", lwd = 2)
+axis(side = 1, lwd = 0, lwd.ticks = 2, at = seq(2020, 2175, length.out = 7),
+     labels = c("2020.0", "2020.5", "2021.0", "2021.5", "2022.0", "2022.5", "2023.0"))
+axis(side = 2, lwd = 0, lwd.ticks = 2, las = 2)
+dev.off()
+
+png(file = "model/plots/ARFIMA_forecast_test.png", width = 9, height = 6.5, 
+    units = "in", res = 300)
+plot(forecast_arfima, main = "MCMF Program Count Forecast with Testing Data", 
+     xlab = "Time", ylab = "Count", bty = "n", xaxt = "n", yaxt = "n",
+     cex.main = 2)
+box("plot", bty = "l", lwd = 2)
+axis(side = 1, lwd = 0, lwd.ticks = 2, at = seq(2020, 2175, length.out = 7),
+     labels = c("2020.0", "2020.5", "2021.0", "2021.5", "2022.0", "2022.5", "2023.0"))
+axis(side = 2, lwd = 0, lwd.ticks = 2, las = 2)
 lines(test_count, col = "purple")
-autoplot(total_count_forecast) + autolayer(test_count)
+legend(2020.0, 2300, legend = c("ARFIMA Forecast", "Testing Data"),
+       col = c("#2297e6", "purple"), lty = 1, lwd = c(2.25,1), cex = 1.5)
+dev.off()
 
+### testing
+forecast_values <- forecast_arfima$mean
 
-## testing
-total_count_test <- Arima(test_count, model = total_count_fit)
-accuracy(total_count_test)
+errors <- test_count - forecast_values
+mae <- mean(abs(errors))
+rmse <- sqrt(mean(errors^2))
+mpe <- mean(errors / test_count * 100)
+mape <- mean(abs(errors / test_count)) * 100
+
+perf_met <- tibble(Metrics = c("Mean Absolute Error (MAE)",
+                               "Root Mean Squared Error (RMSE)", 
+                               "Mean Percentage Error (MPE)", 
+                               "Mean Average Percentage Error (MAPE)"),
+                   Values = c(mae, rmse, mpe, mape)) 
+save(perf_met, file = "model/plots/performance.rds")
+
+## GARCH modeling
+### fit GARCH model and find volatility
+total_count_res <- total_count_arfima$residuals
+garch_spec <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(0, 0), include.mean = FALSE),
+  distribution.model = "std" 
+)
+garch_fit <- ugarchfit(spec = garch_spec, data = total_count_res)
+garch_vol <- as.double(sigma(garch_fit))
+garch_forecast_vol <- sigma(ugarchforecast(garch_fit, n.ahead = 468))
+
+### Calculate GARCH intervals
+forecast_upper_bound <- forecast_arfima$mean + 1.96 * garch_forecast_vol
+forecast_lower_bound <- forecast_arfima$mean - 1.96 * garch_forecast_vol
+upper_bound <- fit_arfima + 1.96 * garch_vol
+lower_bound <- fit_arfima - 1.96 * garch_vol
+
+### plot GARCH
+png(file = "model/plots/GARCH_estimate.png", width = 9, height = 6.5,
+    units = "in", res = 300)
+plot(train_count, main = "GARCH Estimated Volatility", ylab = "Count", lwd = 1.5,
+     bty = "n", xaxt = "n", yaxt = "n", cex.main = 2)
+box("plot", bty = "l", lwd = 2)
+axis(side = 1, lwd = 0, lwd.ticks = 2, at = seq(2020, 2175, length.out = 7),
+     labels = c("2020.0", "2020.5", "2021.0", "2021.5", "2022.0", "2022.5", "2023.0"))
+axis(side = 2, lwd = 0, lwd.ticks = 2, las = 2)
+lines(lower_bound,col='red')
+lines(upper_bound,col='blue')
+legend(2020.0, 2100, legend = c("Upper Bound", "Lower Bound", "Original Data"),
+       col=c("blue", "red", "black"), lty = 1, lwd = c(1,1,1.5), cex = 1.5)
+dev.off()
+
+### plot ARFIMA-GARCH forecast
+png(file = "model/plots/ARFIMA_GARCH_forecast.png", width = 9, height = 6.5,
+    units = "in", res = 300)
+plot(forecast_arfima, main = "ARFIMA-GARCH Forecasting", xlab = "Time", 
+     ylab = "Count", bty = "n", xaxt = "n", yaxt = "n", cex.main = 2)
+box("plot", bty = "l", lwd = 2)
+axis(side = 1, lwd = 0, lwd.ticks = 2, at = seq(2020, 2175, length.out = 7),
+     labels = c("2020.0", "2020.5", "2021.0", "2021.5", "2022.0", "2022.5", "2023.0"))
+axis(side = 2, lwd = 0, lwd.ticks = 2, las = 2)
+lines(forecast_lower_bound,col='red')
+lines(forecast_upper_bound,col='blue')
+legend(2020, 2425, legend = c("ARFIMA Forecast", "GARCH Upper Bound", 
+                                "GARCH Lower Bound"), 
+       col = c("#2297e6", "blue", "red"), lty = 1, lwd = c(2.25, 1, 1),
+       cex = 1.5)
+dev.off()
+
+### ARFIMA-GARCH forecast with testing data
+png(file = "model/plots/ARFIMA_GARCH_forecast_test.png", width = 9, height = 6.5,
+    units = "in", res = 300)
+plot(forecast_arfima, main = "ARFIMA-GARCH Forecasting with Testing Data", 
+     xlab = "Time", ylab = "Count", bty = "n", xaxt = "n", yaxt = "n",
+     cex.main = 2)
+box("plot", bty = "l", lwd = 2)
+axis(side = 1, lwd = 0, lwd.ticks = 2, at = seq(2020, 2175, length.out = 7),
+     labels = c("2020.0", "2020.5", "2021.0", "2021.5", "2022.0", "2022.5", "2023.0"))
+axis(side = 2, lwd = 0, lwd.ticks = 2, las = 2)
+lines(forecast_lower_bound,col='red')
+lines(forecast_upper_bound,col='blue')
+lines(test_count, col = "purple")
+legend(2020, 2300, legend = c("ARFIMA Forecast", "GARCH Upper Bound", 
+                                "GARCH Lower Bound", "Testing Data"), 
+       col = c("#2297e6", "blue", "red", "purple"), lty = 1, 
+       lwd = c(2.25,1,1,1), cex = 1.5)
+dev.off()
 
 # cat_prof----
 ## time series data
