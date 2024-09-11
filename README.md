@@ -1,6 +1,6 @@
-# My Chi. My Future Project
+# My Chi. My Future. Project
 This is my final project for the Data Science Project course at Northwestern University. </p>
-[Project Product Link](https://2r7ec0-emma-yu.shinyapps.io/mcmf_map/){target="_blank"} </p>
+[Project Product Link](https://2r7ec0-emma-yu.shinyapps.io/mcmf_map/) </p>
 My CHI. My Future. is an initiative launched in May 2020 by the mayoral office and the City of Chicago to create a community network that connects young people and local organizations through a variety of youth programs. MCMF programs provide young people, ranging from the ages 0-24, with opportunities to participate in activities related to academic advancement, professional and personal development, art, wellness, and leisure. </p>
 We were asked to use our data science skill sets to evaluate the program's equitability and create product that can improve MCMF program equity.
 
@@ -39,6 +39,6 @@ If you would like to view my reports, you can check out [`eda/EDA.md`](https://g
 ## Acknowledgement
 This project was done in collaboration with Shruti Rathnavel and Rhona Zhang. </p>
 Data citation: </p>
-[My Chi. My Future. Data](https://data.cityofchicago.org/Events/My-CHI-My-Future-Programs/w22p-bfyb/data){target="_blank"} </p>
-[Chicago Public School Annual Regional Analysis Data](https://www.cps.edu/sites/ara){target="_blank"}</p>
-[Chicago Community Boundary GeoJSON](https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Community-Areas-current-/cauq-8yn6){target="_blank"}</p>
+[My Chi. My Future. Data](https://data.cityofchicago.org/Events/My-CHI-My-Future-Programs/w22p-bfyb/data) </p>
+[Chicago Public School Annual Regional Analysis Data](https://www.cps.edu/sites/ara)</p>
+[Chicago Community Boundary GeoJSON](https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Community-Areas-current-/cauq-8yn6)</p>
